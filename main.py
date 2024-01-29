@@ -1,57 +1,74 @@
-def main():
-    import tensorflow as tf
-    import matplotlib.pyplot as plt
-    import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import numpy as np
 
-    # Load the MNIST dataset
-    mnist = tf.keras.datasets.mnist
 
-    # Print the version of TensorFlow
-    print("TensorFlow version: {}".format(tf.__version__))
+def create_autoencoder():
+    autoencoder = tf.keras.models.Sequential([
+        tf.keras.layers.Flatten(input_shape=(28, 28)),  # Input layer
+        tf.keras.layers.Dense(128, activation='relu'),  # Encoder
+        tf.keras.layers.Dense(64, activation='relu'),   # Latent space
+        tf.keras.layers.Dense(128, activation='relu'),  # Decoder
+        tf.keras.layers.Dense(28 * 28, activation='sigmoid'),  # Output layer (reconstructed image)
+        tf.keras.layers.Reshape((28, 28))  # Reshape to match input shape
+    ])
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    return autoencoder
 
-    # Set the logging level to debug
-    tf.get_logger().setLevel('FATAL')
 
-    # Load the data and split it into training and testing sets
-    (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    # Normalize the data (scale it to 0-1) and convert it to float32
-    x_train, x_test = tf.cast(x_train / 255.0, tf.float32), tf.cast(x_test / 255.0, tf.float32)
-
-    # Create the model
-    model = tf.keras.models.Sequential([
+def create_classifier():
+    classifier = tf.keras.models.Sequential([
         tf.keras.layers.Flatten(input_shape=(28, 28)),  # Input layer
         tf.keras.layers.Dense(128, activation='relu'),  # Hidden layer
-        tf.keras.layers.Dense(10, activation='softmax')  # Output layer
+        tf.keras.layers.Dense(10, activation='softmax')  # Output layer for classification (10 classes for digits)
     ])
+    classifier.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    return classifier
 
-    # Compile the model
-    model.compile(optimizer='adam',
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
 
-    # Train the model on the training set
-    model.fit(x_train, y_train, epochs=5)
+def visualize_encoder_results(autoencoder, x_test):
+    # Visualize original and reconstructed images
+    reconstructed_images = autoencoder.predict(x_test)
 
-    # Evaluate the model on the test set
-    model.evaluate(x_test, y_test)
-
-    # Show first 5 images in the test set
+    plt.figure(figsize=(10, 4))
     for i in range(5):
-        plt.imshow(x_test[i], cmap=plt.cm.binary)
-        plt.show()
+        # Original Image
+        plt.subplot(2, 5, i + 1)
+        plt.imshow(x_test[i], cmap='gray')
+        plt.title("Original")
 
-    # Print the labels of the first 5 images in the test set
-    print(f'\nfirst 5 images in the test set labels:\n{y_test[:5]}')
+        # Reconstructed Image
+        plt.subplot(2, 5, i + 6)
+        plt.imshow(reconstructed_images[i], cmap='gray')
+        plt.title("Reconstructed")
+    plt.show()
 
-    # Set the format of the predictions to 3 decimal places
-    np.set_printoptions(formatter={'float': lambda x: "{0:0.5f}".format(x)})
 
-    # Predict the first 5 images in the test set
-    predictions = model.predict(x_test[:5])
+def main():
+    # Load the MNIST dataset
+    mnist = tf.keras.datasets.mnist
+    (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
-    # Show the predictions of the first 5 images in the test set as probabilities for each class
-    for i in range(5):
-        print(f'Prediction for image {i}:\n{predictions[i]}\n')
+    x_train, x_test = x_train / 255.0, x_test / 255.0  # Normalize pixel values to [0, 1]
+
+    print('Create and train the autoencoder')
+    autoencoder = create_autoencoder()
+    autoencoder.fit(x_train, x_train, epochs=5)
+
+    print('Visualize the encoder results')
+    visualize_encoder_results(autoencoder, x_test)
+
+    print('\nCreate and train the classifier')
+    classifier = create_classifier()
+    classifier.fit(x_train, y_train, epochs=5, validation_data=(x_test, y_test))
+
+    print('Evaluate the classifier on the test set')
+    classifier.evaluate(x_test, y_test)
+
+    print('\nPredict the first 5 images in the test set using trained classifier')
+    predictions = classifier.predict(x_test[:5])
+    print('Test values: ', y_test[:5])
+    print('Predicted values:', np.argmax(predictions, axis=1))
 
 
 if __name__ == "__main__":
